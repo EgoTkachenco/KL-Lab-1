@@ -1,4 +1,3 @@
-const prompt = require('prompt');
 const fs = require('fs');
 
 // Український алфавіт
