@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="./node_modules/chart.js/dist/Chart.min.css">
+    <link rel="stylesheet" href="./node_modules/apexcharts/dist/apexcharts.css">
+    <script src="./node_modules/vue/dist/vue.js"></script>
+    
+    <script src="./node_modules/chart.js/dist/Chart.js"></script>
+    <script src="./node_modules/apexcharts/dist/apexcharts.js"></script>
+
+    <style>
+        #app {
+            margin: 0 auto 100px;
+            width: 80%;
+        }
+        .chart-row {
+            display: flex;
+            flex-wrap: wrap;
+            margin-top: 32px;
+            justify-content: space-between;
+        }
+        .chart-row-item {
+            width: 49%;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app">
+        <div class="app-controll">
+            <button 
+                @click="setAuthor(author)"
+                :key="i"
+                v-for="(author, i) in authors">
+                {{author.name}}
+            </button>
+        </div>
+
+        <div v-if="activeAutor">
+            <div class="app-controll">
+                <button 
+                    @click="setTab(i)"
+                    :key="i"
+                    v-for="(tab, i) in tabs">
+                    {{tab}}
+                </button>
+            </div>
+            <div class="chart-row">
+                
+                <div class="chart-row-item">
+                    <canvas id="myChart" height="250" style="width: 100%; height: 500px"></canvas>
+                </div>
+                <div class="chart-row-item">
+                    <div id="heatmap" style="width: 100%; height: 500px"></div>
+                </div><div class="chart-row-item">
+                    <canvas id="langChart" height="250" style="width: 100%; height: 500px"></canvas>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+    <script defer>
+        // Український алфавіт
+        const ALPHABET = ['а', 'б', 'в', 'г', 'д', 'е', 'ж', 'з', 'и', 'й', 'к', 'л', 'м', 'н', 'о',
+            'п', 'р', 'с', 'т', 'у', 'ф', 'х', 'ц', 'ч', 'ш', 'щ', 'і', 'ї', 'ь', 'є', 'ю', 'я'];
+
+        new Vue({
+            el: '#app',
+            data: () => ({
+                authors: [
+                    {
+                        name: 'Винниченко',
+                        fileUrl: '/Винниченко-analize.json',
+                    },
+                    {
+                        name: 'Довженко',
+                        fileUrl: '/Довженко-analize.json',
+                    },
+                    {
+                    name: 'Хвильовий',
+                    fileUrl: '/Хвильовий-analize.json',
+                }
+                ],
+                tabs: [],
+                activeTab: null,
+                activeAutor: null,
+                authorData: null,
+                mChart: null,
+                biChart: null,
+                lChart: null
+            }),
+            methods: {
+                setTab(tab) {
+                    if(tab < this.authorData.textsCount) {
+                        this.drawChart(this.authorData.mHists[tab].name, Object.keys(this.authorData.mFreqs[tab]), Object.values(this.authorData.mFreqs[tab]));
+                        this.drawLangChart(this.authorData.author, Object.keys(this.authorData.mFreq), Object.values(this.authorData.mFreq));
+
+                        let biData = []
+                        for(char of ALPHABET) {
+                            let seria = {
+                                name: char,
+                                data: ALPHABET.map(key => {
+                                    let a = Number(this.authorData.biFreqs[tab][char + key]).toFixed(6);
+                                    return this.authorData.biFreqs[tab][char + key] ? a : 0;
+                                })
+                            };
+                            biData.push(seria);
+                        }
+
+
+                        this.drawBiChart(biData, this.authorData.biHists[tab].name);
+                    } else {
+                        this.drawChart(this.authorData.author, Object.keys(this.authorData.mFreq), Object.values(this.authorData.mFreq));
+
+                        let biData = []
+                        for(char of ALPHABET) {
+                            let seria = {
+                                name: char,
+                                data: ALPHABET.map(key => {
+                                    let a = Number(this.authorData.biFreq[char + key]);
+                                    return this.authorData.biFreq[char + key] ? a : 0;
+                                })
+                            };
+                            biData.push(seria);
+                        }
+
+
+                        this.drawBiChart(biData, this.authorData.author);
+                    }
+                    
+                    
+                },
+                async setAuthor(author) {
+                    this.activeAutor = author;
+                    let data = await this.loadFile(author.fileUrl)
+                    
+                    this.authorData = data;
+                    this.tabs = [...data.mHists.map(e => e.name), 'Результат']
+
+                    
+                },
+                drawBiChart(biData, title) {
+                    if(this.biChart) {
+                        this.biChart.destroy();
+                    } 
+                    let options = {
+                            series: biData,
+                            chart: {
+                                animations: {
+                                    enabled: false
+                                },
+                                height: 500,
+                                type: 'heatmap',
+                            },
+                            dataLabels: {
+                                enabled: false
+                            },
+                            colors: ["#008FFB"],
+                            title: {
+                                text: title
+                            },
+                        };
+                        this.biChart = new ApexCharts(document.getElementById("heatmap"), options);
+                        this.biChart.render();
+                },
+                drawChart(label, labels, data) {
+                    if(this.mChart) this.mChart.destroy();
+                    let ctx = document.getElementById('myChart');
+                    this.mChart = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: label,
+                                data: data,
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            animation: {
+                                duration: 0
+                            }
+                        }
+                    });
+                },
+                drawLangChart(label, labels, data) {
+                    if(this.lChart) this.lChart.destroy();
+                    let ctx = document.getElementById('langChart');
+                    this.lChart = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: label,
+                                data: data,
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            animation: {
+                                duration: 0
+                            }
+                        }
+                    });
+                },
+                async loadFile(url) {
+                    let res = await fetch(url);
+                    let data = await res.json();
+                    return data;
+                    
+                }
+            },
+            created() {
+                // this.loadFile('/Гончар-analize.json')
+            }
+        })
+    </script>
+</body>
+</html>
